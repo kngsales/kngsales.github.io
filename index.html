@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#1565c0"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><title>KNG مبيعات</title>
+<style>
+:root{--bg:#f4f6f8;--c:#fff;--t:#1b1f24;--m:#667;--p:#1565c0;--b:#dde1e6;--bst:#e3f0fc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171a;--c:#1e2327;--t:#eceff1;--m:#9aa5ad;--b:#333b41;--p:#64b5f6;--bst:#14283d}}
+:root[data-theme="dark"]{--bg:#14171a;--c:#1e2327;--t:#eceff1;--m:#9aa5ad;--b:#333b41;--p:#64b5f6;--bst:#14283d}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--t);font-family:Tahoma,Arial,sans-serif;font-size:16px}
+nav{display:flex;gap:6px;overflow-x:auto;padding:8px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5}
+.tab{white-space:nowrap;border:1px solid var(--b);background:var(--c);color:var(--t);border-radius:20px;padding:8px 14px}
+.tab.on{background:var(--p);color:#fff;border-color:var(--p)}
+main{padding:8px 10px 40px;max-width:640px;margin:auto}
+.card{background:var(--c);border:1px solid var(--b);border-radius:12px;padding:10px;margin:8px 0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:5px 0}
+.row.best{background:var(--bst);border-radius:8px;padding:5px}
+input,select{width:100%;box-sizing:border-box;padding:10px;margin:4px 0;border:1px solid var(--b);border-radius:8px;background:var(--bg);color:var(--t);font-size:16px}
+button,.btn{border:1px solid var(--b);background:var(--c);color:var(--t);border-radius:8px;padding:9px 12px;font-size:15px;text-decoration:none;display:inline-block}
+.pri{background:var(--p);color:#fff;border-color:var(--p)}
+.x{color:#c0392b}
+.cnt{white-space:nowrap;background:var(--p);color:#fff;border-radius:20px;padding:8px 12px;font-weight:bold}.warn{background:#b3261e;color:#fff;border-radius:8px;padding:6px}small{color:var(--m)}h3{margin:12px 0 4px}
+table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid var(--b);padding:6px;text-align:right}
+textarea{width:100%;height:140px;box-sizing:border-box;background:var(--bg);color:var(--t);border:1px solid var(--b);border-radius:8px}
+#toast{display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:20px;z-index:9}
+@media print{.np,#toast{display:none!important}body{background:#fff;color:#000}.card{border:0;background:#fff;color:#000}td,th{color:#000}.row.best{background:#e3f0fc!important}}
+</style></head><body>
+<div id="app"></div><div id="toast"></div>
+<script>
+let S={pkg:null,orders:[],seq:0,rep:''},tab='orders',draft={cid:'',items:[]},dupW=null,armed='',impMode=false;
+try{const x=localStorage.getItem('kngsales');if(x)S=JSON.parse(x)}catch(e){}
+const save=()=>{try{localStorage.setItem('kngsales',JSON.stringify(S))}catch(e){}};
+const $=i=>document.getElementById(i);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>(+n||0).toLocaleString('en',{maximumFractionDigits:2});
+const g=(a,id)=>a.find(x=>x.id===id);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const wa=n=>{n=String(n||'').replace(/\D/g,'');return n.startsWith('0')?'20'+n.slice(1):n};
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2500)}
+const isU=l=>/^https?:\/\//i.test(String(l||'').trim());
+const tel=n=>n?`<a class="btn" href="tel:${esc(n)}">📞 ${esc(n)}</a>`:'';
+const mapB=l=>{l=String(l||'').trim();if(!l)return '';const u=isU(l)?l:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(l);return `<a class="btn" target="_blank" rel="noopener" href="${esc(u)}">📍 خريطة</a>`};
+const locTxt=l=>isU(l)?'':esc(l);
+const ub=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function kdf(pw,salt){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:250000,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['decrypt'])}
+async function decStr(pw,t){const j=JSON.parse(t),pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:ub(j.i)},await kdf(pw,ub(j.s)),ub(j.d));return JSON.parse(new TextDecoder().decode(pt))}
+const sub=o=>o.items.reduce((a,i)=>a+i.qty*i.price,0);
+const net=o=>sub(o)-(+o.auto||0);
+function autoDisc(items,cid){const D=S.pkg.disc,c=g(S.pkg.clients,cid),cl=c&&D.cls.find(x=>x.id===c.dcls),f=cl?+cl.f:0;let u=0;items.forEach(i=>{const p=g(S.pkg.products,i.pid);if(p&&p.disc)u+=+i.qty});
+const T=D.tiers.map(t=>[+t[0],+t[1]]).filter(t=>t[0]>0&&t[1]>0).sort((a,b)=>a[0]-b[0]);let r=0,nx=null;const top=T.length?T[T.length-1][0]:0;T.forEach(t=>{if(u>=t[0])r=t[1];else if(nx===null)nx=t});
+const ue=D.cap&&top&&u>top?top:u,on=D.on&&f>0,amt=on&&r>0?Math.round(ue*r*f*100)/100:0;return{u,ue,r:r*f,amt,next:nx,f,on}}
+async function loadPkg(txt,pw){try{let d=JSON.parse(txt);if(d&&d.s&&d.i&&d.d){if(!pw)return toast('الحزمة مشفّرة: اكتب كلمة السر');d=await decStr(pw,txt)}if(!d||!d.kngsales||!d.products||!d.clients)throw 0;if(S.rep&&S.rep!==d.rep.code&&S.orders.some(o=>!o.sent))return toast('عندك طلبات غير مرسلة: أرسلها أولاً');S.pkg=d;S.rep=d.rep.code;save();impMode=false;toast('تم تحميل الحزمة ✔');render()}catch(e){toast('الحزمة غير صحيحة أو كلمة السر خاطئة')}}
+function pkgFile(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>loadPkg(r.result,$('pk_pw').value);r.readAsText(f)}
+function pkgPaste(){loadPkg($('pk_txt').value,$('pk_pw').value)}
+function importHTML(){return `<main><div class="card"><h3>📦 تحميل حزمة المندوب</h3><small>الحزمة ملف يرسله لك المالك. اكتب كلمة السر أولاً إن كانت مشفّرة.</small><input id="pk_pw" type="password" placeholder="كلمة السر (إن وُجدت)"><input type="file" accept=".txt,.json,text/plain" onchange="pkgFile(this)"><textarea id="pk_txt" placeholder="أو الصق نص الحزمة هنا"></textarea><button class="pri" onclick="pkgPaste()">تحميل</button>${S.pkg?'<button onclick="impMode=false;render()">إلغاء</button>':''}</div></main>`}
+const pl=p=>p.name+' — '+(+p.sell>0?fmt(p.sell):'بدون سعر');
+function fcl(v){v=v.trim().toLowerCase();const s=$('ic'),l=S.pkg.clients.filter(c=>(c.name+' '+(c.zone||'')).toLowerCase().includes(v));s.innerHTML=(v?'':'<option value="">— اختر العميل —</option>')+l.map(c=>`<option value="${c.id}" ${c.id===draft.cid?'selected':''}>${esc(c.name)}</option>`).join('')+((v&&!l.length)?'<option value="">لا توجد نتائج</option>':'');if(v)draft.cid=l.length?s.value:'';else if(draft.cid)s.value=draft.cid;saveUI()}
+function fsel(v){v=v.trim().toLowerCase();const l=S.pkg.products.filter(p=>(p.name+' '+(p.cat||'')).toLowerCase().includes(v));$('ip').innerHTML=l.map(p=>`<option value="${p.id}">${esc(pl(p))}</option>`).join('')||'<option value="">لا توجد نتائج</option>';pinfo()}
+function pinfo(){const e=$('pinfo');if(!e)return;const p=g(S.pkg.products,$('ip').value),q=+$('iq').value||0;if(!p){e.innerHTML='';return}e.innerHTML=+p.sell>0?`<div class="row best"><span>💵 السعر: <b>${fmt(p.sell)}</b>${p.disc?' 🎁':''}</span>${q?`<b>${q} × ${fmt(p.sell)} = ${fmt(q*p.sell)}</b>`:''}</div>`:'<div class="row warn"><b>⚠️ لا يوجد سعر لهذا المنتج</b></div>'}
+function addItem(){const pid=$('ip').value,q=+$('iq').value,p=g(S.pkg.products,pid);if(!p||!(q>0))return toast('اختر المنتج والكمية');if(!(+p.sell>0))return toast('لا يمكن إضافة منتج بلا سعر');const ex=draft.items.findIndex(i=>i.pid===pid);if(ex>=0){dupW={pid,q,ex};render();return toast('⚠️ هذا المنتج موجود في الطلب بالفعل')}draft.items.push({pid,qty:q,price:+p.sell});dupW=null;render()}
+function dupDo(a){const w=dupW;if(!w)return;const l=draft.items[w.ex];if(a==='m'&&l)l.qty+=w.q;else if(a==='r'&&l)l.qty=w.q;else if(a==='s')draft.items.push({pid:w.pid,qty:w.q,price:+g(S.pkg.products,w.pid).sell});dupW=null;render()}
+function dupHTML(){const w=dupW;if(!w||!draft.items[w.ex])return '';const l=draft.items[w.ex],p=g(S.pkg.products,w.pid);return `<div class="warn card"><b>⚠️ تنبيه: "${esc(p?p.name:'?')}" موجود في الطلب بالفعل</b><div>الموجود: ${l.qty} × ${fmt(l.price)}</div><div>الجديد: ${w.q}</div><div class="row"><button onclick="dupDo('m')">➕ ادمج (يصبح ${l.qty+w.q})</button><button onclick="dupDo('r')">🔁 استبدل بـ ${w.q}</button></div><div class="row"><button onclick="dupDo('s')">سطر منفصل</button><button onclick="dupDo('c')">✖ إلغاء</button></div></div>`}
+function sumHTML(){const it=draft.items;if(!it.length)return '';const t=it.reduce((a,i)=>a+i.qty*i.price,0),a=autoDisc(it,draft.cid);let h=`<div class="card" style="margin:4px 0"><div class="row"><span>عدد الأصناف</span><b>${new Set(it.map(i=>i.pid)).size}</b></div><div class="row"><span>عدد القطع</span><b>${it.reduce((x,i)=>x+i.qty,0)}</b></div><div class="row"><span>الإجمالي</span><b>${fmt(t)}</b></div>`;
+if(a.on){h+=`<div class="row"><span>🎁 قطع قابلة للخصم</span><b>${a.u}</b></div>`;if(a.amt)h+=`<div class="row"><span>خصم الكمية (${a.ue} × ${fmt(a.r)})</span><b>- ${fmt(a.amt)}</b></div>`;if(a.next&&a.u>0)h+=`<small>💡 باقي ${a.next[0]-a.u} قطعة قابلة للخصم للوصول إلى ${fmt(a.next[1]*a.f)} جنيه خصم للقطعة</small>`}
+if(a.amt)h+=`<div class="row best"><span>الإجمالي بعد الخصم</span><b>${fmt(t-a.amt)}</b></div>`;return h+'</div>'}
+function saveOrder(){if(!draft.cid||!draft.items.length)return toast('اختر العميل وأضف أصناف');if(new Set(draft.items.map(i=>i.pid)).size<draft.items.length&&armed!=='dup'){armed='dup';render();return toast('⚠️ يوجد منتج مكرر! اضغط حفظ مرة أخرى للتأكيد')}armed='';const a=autoDisc(draft.items,draft.cid);S.seq=(S.seq||0)+1;S.orders.push({id:uid(),n:S.seq,cid:draft.cid,date:new Date().toLocaleDateString('en-GB'),items:draft.items.map(i=>({...i})),auto:a.amt,sent:false});draft={cid:'',items:[]};dupW=null;save();render();toast('تم حفظ الطلب رقم '+S.seq+' ✔')}
+function delOrd(id){const o=g(S.orders,id);if(!o||o.sent)return;if(armed!==id){armed=id;render();return}armed='';S.orders=S.orders.filter(x=>x.id!==id);save();render()}
+function sendTxt(os){return 'KNG طلبات '+S.pkg.rep.name+'\n'+os.map(o=>'KNGORD:'+JSON.stringify({r:S.pkg.rep.code,n:o.n,id:o.id,c:o.cid,d:o.date,i:o.items.map(i=>[i.pid,i.qty,i.price])})).join('\n')}
+async function sendOrders(all){const os=S.orders.filter(o=>all||!o.sent);if(!os.length)return toast('لا توجد طلبات للإرسال');const t=sendTxt(os);let done=false;try{if(navigator.share){await navigator.share({text:t});done=true}}catch(e){if(e&&e.name==='AbortError')return}if(!done){window.open('https://wa.me/'+wa(S.pkg.owner)+'?text='+encodeURIComponent(t),'_blank')}os.forEach(o=>o.sent=true);save();render()}
+function ordList(){const un=S.orders.filter(o=>!o.sent).length,l=[...S.orders].reverse().slice(0,60).map(o=>{const c=g(S.pkg.clients,o.cid);return `<div class="card"><div class="row"><b>#${o.n} ${esc(c?c.name:'—')}</b><b>${fmt(net(o))}</b></div><small>${o.date} · ${o.items.length} صنف${o.auto?' · خصم '+fmt(o.auto):''} · ${o.sent?'✅ مُرسل':'⏳ لم يُرسل'}</small><div class="row">${o.sent?'<button onclick="sendOne(\''+o.id+'\')">↻ إعادة إرسال</button>':'<button class="x" onclick="delOrd(\''+o.id+'\')">'+(armed===o.id?'تأكيد الحذف؟':'🗑 حذف')+'</button>'}</div></div>`}).join('');
+return `<h3>طلباتي</h3><button class="pri" onclick="sendOrders(false)">📤 إرسال الطلبات غير المرسلة (${un})</button>${l||'<div class="card"><small>لا توجد طلبات</small></div>'}`}
+function sendOne(id){const o=g(S.orders,id);if(!o)return;const t=sendTxt([o]);try{if(navigator.share){navigator.share({text:t});return}}catch(e){}window.open('https://wa.me/'+wa(S.pkg.owner)+'?text='+encodeURIComponent(t),'_blank')}
+const V={
+orders(){const P=S.pkg,d=draft,cl='<option value="">— اختر العميل —</option>'+P.clients.map(c=>`<option value="${c.id}" ${c.id===d.cid?'selected':''}>${esc(c.name)}</option>`).join(''),pr=P.products.map(p=>`<option value="${p.id}">${esc(pl(p))}</option>`).join('');
+const it=d.items.map((i,k)=>{const p=g(P.products,i.pid);return `<div class="row ${d.items.filter(x=>x.pid===i.pid).length>1?'warn':''}"><span>${esc(p?p.name:'?')}${p&&p.disc?' 🎁':''}</span><span>${i.qty} × ${fmt(i.price)}</span><button class="x" onclick="draft.items.splice(${k},1);dupW=null;render()">✖</button></div>`}).join('');
+return `<div class="card"><h3>طلب جديد</h3><input placeholder="🔎 ابحث عن عميل" oninput="fcl(this.value)"><select id="ic" onchange="draft.cid=this.value;saveUI();render()">${cl}</select>${it}${sumHTML()}<input placeholder="🔎 ابحث عن منتج" oninput="fsel(this.value)"><select id="ip" onchange="pinfo()">${pr}</select><div id="pinfo"></div><input id="iq" type="number" inputmode="numeric" placeholder="الكمية" oninput="pinfo()">${dupHTML()}<button onclick="addItem()">➕ أضف الصنف</button><button class="pri" onclick="saveOrder()">💾 احفظ الطلب</button></div>${ordList()}`},
+clients(){const l=S.pkg.clients.map(c=>{const lo=[...S.orders].reverse().find(o=>o.cid===c.id);return `<div class="card" data-f="${esc(c.name+' '+(c.zone||'')+' '+(c.addr||''))}"><div class="row"><b>${esc(c.name)}</b>${lo?'<small>آخر طلب '+lo.date+'</small>':''}</div><small>${locTxt(c.addr)} ${esc(c.zone||'')}</small><div class="row">${tel(c.phone)}${mapB(c.addr)}</div></div>`}).join('');
+return `<input placeholder="🔎 بحث" oninput="flt(this.value)"><small>عملائي: ${S.pkg.clients.length}</small>${l}<button onclick="impMode=true;render()">📦 تحديث الحزمة</button>`}};
+function flt(v){v=v.trim().toLowerCase();document.querySelectorAll('[data-f]').forEach(e=>e.style.display=(e.dataset.f||e.textContent).toLowerCase().includes(v)?'':'none')}
+function saveUI(){try{localStorage.setItem('kngsales_ui',JSON.stringify({tab,draft}))}catch(e){}}
+function render(){if(!S.pkg||impMode){$('app').innerHTML=importHTML();return}$('app').innerHTML=`<nav class="np">${[['orders','📋 الطلبات'],['clients','👥 العملاء']].map(([k,l])=>`<button class="tab ${k===tab?'on':''}" onclick="tab='${k}';armed='';render()">${l}</button>`).join('')}</nav><main>${V[tab]()}</main>`;pinfo();saveUI()}
+try{const u=JSON.parse(localStorage.getItem('kngsales_ui')||'null');if(u){if(V[u.tab])tab=u.tab;if(u.draft)draft=u.draft}}catch(e){}
+if(S.pkg){draft.items=(draft.items||[]).filter(i=>g(S.pkg.products,i.pid));if(draft.cid&&!g(S.pkg.clients,draft.cid))draft.cid=''}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveUI()});window.addEventListener('pagehide',saveUI);
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+render();
+</script></body></html>
